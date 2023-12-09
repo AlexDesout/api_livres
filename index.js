@@ -5,42 +5,23 @@ const dbLivres = nano.db.use('livres');
 // app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
 
-// const Joi = require('joi').extend(require('@joi/date'));
+const Joi = require('joi');
 
-
-// const sportif = Joi.object({
-//   numlicence: Joi.number()
-//     .integer()
-//     .min(1)
-//     .required(),
-//   nom: Joi.string()
-//     .alphanum()
-//     .min(3)
-//     .max(30)
-//     .required(),
-//   prenom: Joi.string()
-//     .alphanum()
-//     .min(3)
-//     .max(30)
-//     .required(),
-//   sport: {
-//     codes: Joi.number()
-//       .integer()
-//       .min(1)
-//       .required(),
-//     libelle: Joi.string()
-//       .alphanum()
-//       .min(3)
-//       .max(30)
-//       .required(),
-//   },
-//   datenaiss: Joi.date().format('DD/MM/YYYY'),
-//   pays: Joi.string()
-//     .alphanum()
-//     .required()
-
-
-// })
+// Initialisation d'un modèle de livre
+const livre = Joi.object({
+    numero: Joi.number()
+        .integer()
+        .min(1)
+        .required(),
+        titre: Joi.string()
+        .regex(/^[a-zA-Z0-9À-ÿ\s]+$/u)
+        .min(1)
+        .max(100)
+        .required(),    
+    pages: Joi.array()
+        .items(Joi.string().min(1).max(100))
+        .required(),
+})
 
 // Route initiale
 app.get("/", (req, res) => {
@@ -70,7 +51,6 @@ app.get("/livres/:numlivre", async (req, res) => {
         "fields": ["titre"],
         "sort": []
     };
-    console.log(query)
 
     let searchLivre = await dbLivres.find(query);
 
@@ -124,82 +104,86 @@ app.get("/livres/:numlivre/pages/:numPage", async (req, res) => {
 app.post("/livres", async (req, res) => {
     const body = req.body;
 
-    if (Object.keys(body).length !== 0) {
-        // const { value, error } = sportif.validate(body);
-        // if (error == undefined) {
-        //   console.log(error)
-        //   const responseI = await dbSportifs.insert(body)
-        //   res.status(200).json(responseI)
-        // } else {
-        //   console.log(error)
-        //   res.status(400).json({ message: error })
-        // }
-        const responseI = await dbLivres.insert(body)
-        res.status(200).json(responseI)
-
-    }
-    else {
+    if (Object.keys(body).length === 0) {
         res.status(400).json({ message: "Veuillez saisir des informations" });
+    } else {
+        const { value, error } = livre.validate(body);
+
+        if (error == undefined) {
+            const responseI = await dbLivres.insert(body);
+            responseI
+                ? res.status(201).json({ message: "Livre ajouté" })
+                : res.status(400).json({ message: "Livre non ajouté" });
+
+        } else {
+            res.status(400).json({ message: error.details });
+        }
     }
 
 });
 
-// app.put("/sportifs/:id", async (req, res) => {
-//   const body = req.body;
-//   const id = req.params.id
-//   // console.log(id)
-//   if (Object.keys(body).length !== 0) {
-//     const { value, error } = sportif.validate(body);
-//     if (error == undefined) {
-//       const query = {
-//         "selector": { "_id": id },
-//         "fields": ["_rev"],
-//         "sort": ["nom", "prenom"]
-//       }
+// Supprimer un livre
+app.delete("/livres/:numlivre", async (req, res) => {
+    const numlivre = parseInt(req.params.numlivre)
 
-//       let selectedSportif = await dbSportifs.find(query);
-//       const rev = selectedSportif.docs[0]._rev
-//       const newData = {
-//         "nom": body.nom,
-//         "prenom": body.prenom,
-//         "sport": {
-//           "libelle": body.libelle
-//         },
-//         "datenaiss": body.datenaiss,
-//         "_id": body._id,
-//         "_rev": rev
-//       }
-//       // const responseI = await dbSportifs.insert(body)
-//       let newSportif = await dbSportifs.insert(newData);
-//       res.status(200).json(newSportif)
-//     } else {
-//       res.status(400).json(error)
-//     }
-//   }
-//   else {
-//     res.status(400).json({ message: "Veuillez saisir des informations" });
-//   }
+    const query = {
+        "selector": { "numero": numlivre },
+        "fields": ["_id", "_rev"],
+        "sort": []
+    }
 
-//   // res.json(selectedSportif)
-// });
+    const selectedLivre = await dbLivres.find(query);
 
-// app.delete("/sportifs/:id", async (req, res) => {
-//   const id = req.params.id
+    if (selectedLivre.docs.length === 0) {
+        res.status(400).json({ message: "Livre non trouvé" })
+    } else {
 
-//   const query = {
-//     "selector": { "_id": id },
-//     "fields": ["_rev"],
-//     "sort": ["nom", "prenom"]
-//   }
+        const id = selectedLivre.docs[0]._id
+        const rev = selectedLivre.docs[0]._rev
+        const removeLivre = await dbLivres.destroy(id, rev);
+        removeLivre
+            ? res.status(200).json({ message: `Suppression du livre ${numlivre}` })
+            : res.status(400).json({ message: "Erreur lors de la suppression" })
 
-//   let selectedSportif = await dbSportifs.find(query);
-//   const rev = selectedSportif.docs[0]._rev
+    }
+});
+
+// Modification d'un livre
+app.put("/livres", async (req, res) => {
+    const body = req.body;
 
 
-//   let removeSportif = await dbSportifs.destroy(id, rev);
+    if (Object.keys(body).length === 0) {
+        res.status(400).json({ message: "Veuillez saisir des informations" });
+    }
+    else {
+        const { value, error } = livre.validate(body);
+        if (error == undefined) {
 
-//   res.status(200).json(removeSportif)
-// });
+            const query = {
+                "selector": { "numero": body.numero },
+                "fields": ["_id", "_rev"],
+                "sort": []
+            }
+            const selectedLivre = await dbLivres.find(query);
+            const id = selectedLivre.docs[0]._id
+            const rev = selectedLivre.docs[0]._rev
+            const newData = {
+                ...body,
+                _id: id,
+                _rev: rev
+            }
+            let modifLivre = await dbLivres.insert(newData);
+            modifLivre
+                ? res.status(200).json({ message: "Livre modifié" })
+                : res.status(400).json({ message: "Erreur lors de la modification" })
+
+        } else {
+            res.status(400).json({ message: error.details });
+        }
+    }
+
+});
 
 app.listen(8080, () => {
     console.log("Server Started");
