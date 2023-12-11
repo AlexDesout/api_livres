@@ -1,4 +1,22 @@
-const { dbLivres, livreSchema } = require('../model/livreModel');
+
+// Import des méthodes couchDb
+const { find, insert, destroy } = require('../model/livreModel');
+const Joi = require('joi');
+
+// Schéma d'un livre
+const livreSchema = Joi.object({
+    numero: Joi.number()
+        .integer()
+        .min(1)
+        .required(),
+    titre: Joi.string()
+        .min(1)
+        .max(100)
+        .required(),
+    pages: Joi.array()
+        .items(Joi.string().min(1).max(100))
+        .required(),
+});
 
 const home = async (req, res) => {
     res.status(200).json({ message: "Api de gestion de livres" })
@@ -6,30 +24,20 @@ const home = async (req, res) => {
 
 // Afficher tous les livres
 const getAllLivres = async (req, res, next) => {
-    const query = {
-        "selector": {},
-        "fields": ["numero", "titre"],
-        "sort": []
-    };
-    let livres = await dbLivres.find(query);
 
-    res.status(200).json(livres.docs);
+    let livres = await find("allLivres")
+    // console.log(livres);
+
+    res.status(200).json(livres);
 };
 
 // Chercher un livre par son numero
 const getLivreByNum = async (req, res) => {
     const numLivre = parseInt(req.params.numlivre)
-    console.log(req.params.numlivre)
-    let query = {
-        "selector": { "numero": numLivre },
-        "fields": ["titre"],
-        "sort": []
-    };
 
-    let searchLivre = await dbLivres.find(query);
-
-    searchLivre.docs.length !== 0
-        ? res.status(200).json(searchLivre.docs)
+    let searchLivre = await find("getLivreByNum", numLivre);
+    searchLivre[0]
+        ? res.status(200).json(searchLivre)
         : res.status(404).json({ message: "Livre non trouvé" });
 };
 
@@ -37,16 +45,10 @@ const getLivreByNum = async (req, res) => {
 const getLivrePages = async (req, res) => {
     const numLivre = parseInt(req.params.numlivre)
 
-    let query = {
-        "selector": { "numero": numLivre },
-        "fields": ["pages"],
-        "sort": []
-    };
+    let searchLivre = await find("getLivrePages", numLivre);
 
-    let searchLivre = await dbLivres.find(query);
-
-    searchLivre.docs.length !== 0
-        ? res.status(200).json(searchLivre.docs)
+    searchLivre
+        ? res.status(200).json(searchLivre)
         : res.status(404).json({ message: "Livre non trouvé" });
 }
 
@@ -55,19 +57,11 @@ const getLivreUniquePage = async (req, res) => {
     const numLivre = parseInt(req.params.numlivre)
     const numPage = parseInt(req.params.numPage)
 
-    let query = {
-        "selector": {
-            "numero": numLivre,
-            [`pages.${numPage}`]: { "$exists": true }
-        },
-        "fields": [`pages.${numPage}`],
-        "limit": 1,
-        "sort": []
-    };
-    let searchLivre = await dbLivres.find(query);
 
-    searchLivre.docs.length !== 0
-        ? res.status(200).json(searchLivre.docs)
+    let searchLivre = await find("getLivreUniquePage", numLivre, numPage);
+
+    searchLivre
+        ? res.status(200).json(searchLivre)
         : res.status(404).json({ message: "Page non trouvée" });
 }
 
@@ -80,7 +74,7 @@ const addLivre = async (req, res) => {
         const { value, error } = livreSchema.validate(body);
 
         if (error == undefined) {
-            const responseI = await dbLivres.insert(body);
+            const responseI = insert(body);
             responseI
                 ? res.status(201).json({ message: "Livre ajouté" })
                 : res.status(400).json({ message: "Livre non ajouté" });
@@ -94,26 +88,11 @@ const addLivre = async (req, res) => {
 // Supprimer un livre
 const deleteLivre = async (req, res) => {
     const numlivre = parseInt(req.params.numlivre)
+    const removeLivre = await destroy(numlivre);
 
-    const query = {
-        "selector": { "numero": numlivre },
-        "fields": ["_id", "_rev"],
-        "sort": []
-    }
-
-    const selectedLivre = await dbLivres.find(query);
-
-    if (selectedLivre.docs.length === 0) {
-        res.status(400).json({ message: "Livre non trouvé" })
-    } else {
-
-        const id = selectedLivre.docs[0]._id
-        const rev = selectedLivre.docs[0]._rev
-        const removeLivre = await dbLivres.destroy(id, rev);
-        removeLivre
-            ? res.status(200).json({ message: `Suppression du livre ${numlivre}` })
-            : res.status(400).json({ message: "Erreur lors de la suppression" })
-    }
+    removeLivre
+        ? res.status(200).json({ message: `Suppression du livre ${numlivre}` })
+        : res.status(400).json({ message: "Erreur lors de la suppression" })
 }
 
 // Modifier un livre
@@ -126,21 +105,7 @@ const modifyLivre = async (req, res) => {
     else {
         const { value, error } = livreSchema.validate(body);
         if (error == undefined) {
-
-            const query = {
-                "selector": { "numero": body.numero },
-                "fields": ["_id", "_rev"],
-                "sort": []
-            }
-            const selectedLivre = await dbLivres.find(query);
-            const id = selectedLivre.docs[0]._id
-            const rev = selectedLivre.docs[0]._rev
-            const newData = {
-                ...body,
-                _id: id,
-                _rev: rev
-            }
-            let modifLivre = await dbLivres.insert(newData);
+            let modifLivre = await insert(body, body.numero);
             modifLivre
                 ? res.status(200).json({ message: "Livre modifié" })
                 : res.status(400).json({ message: "Erreur lors de la modification" })
