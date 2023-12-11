@@ -32,7 +32,7 @@ const find = async (request, numLivre, numPage) => {
                 "fields": ["pages"],
                 "sort": []
             };
-            break
+            return (await dbLivres.find(query)).docs[0]
         case "getLivreUniquePage":
             query = {
                 "selector": {
@@ -43,7 +43,7 @@ const find = async (request, numLivre, numPage) => {
                 "limit": 1,
                 "sort": []
             };
-            break
+            return (await dbLivres.find(query)).docs[0]
         case "getId":
             query = {
                 "selector": { "numero": numLivre },
@@ -63,13 +63,10 @@ const insert = async (body, numLivre) => {
     // Pour modifier
     if (numLivre) {
         const selectedLivre = await find("getId", numLivre);
-        console.log(selectedLivre);
 
         const result = selectedLivre[0]
             ? { ...body, _id: selectedLivre[0]._id, _rev: selectedLivre[0]._rev }
             : false;
-
-        console.log(result);
 
         return result ? await dbLivres.insert(result) : false;
     } else { // Pour ajouter

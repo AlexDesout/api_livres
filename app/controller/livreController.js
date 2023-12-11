@@ -45,11 +45,24 @@ const getLivreByNum = async (req, res) => {
 const getLivrePages = async (req, res) => {
     const numLivre = parseInt(req.params.numlivre)
 
-    let searchLivre = await find("getLivrePages", numLivre);
+    const searchLivre = await find("getLivreByNum", numLivre);
 
-    searchLivre
-        ? res.status(200).json(searchLivre)
-        : res.status(404).json({ message: "Livre non trouvé" });
+    if (searchLivre[0]) {
+        const searchPage = await find("getLivrePages", numLivre);
+        // console.log(searchPage);
+
+        const response = searchPage.pages[0]
+            ? { status: 200, data: searchPage }
+            : { status: 404, message: "Page non trouvée" };
+
+        res.status(response.status).json(response.data || { message: response.message });
+    } else {
+        res.status(404).json({ message: "Livre non trouvé" });
+    }
+
+
+
+
 }
 
 // Obtenir une page particulière d'un livre
@@ -57,12 +70,16 @@ const getLivreUniquePage = async (req, res) => {
     const numLivre = parseInt(req.params.numlivre)
     const numPage = parseInt(req.params.numPage)
 
-
-    let searchLivre = await find("getLivreUniquePage", numLivre, numPage);
-
-    searchLivre
-        ? res.status(200).json(searchLivre)
-        : res.status(404).json({ message: "Page non trouvée" });
+    const searchLivre = await find("getLivreByNum", numLivre);
+    if (searchLivre[0]) {
+        let searchPage = await find("getLivreUniquePage", numLivre, numPage);
+        const response = searchPage?.pages
+            ? { status: 200, data: searchPage }
+            : { status: 404, message: "Page non trouvée" };
+        res.status(response.status).json(response.data || { message: response.message });
+    } else {
+        res.status(404).json({ message: "Livre non trouvé" });
+    }
 }
 
 // Ajouter un livre
