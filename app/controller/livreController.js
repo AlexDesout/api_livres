@@ -2,6 +2,7 @@
 // Import des méthodes couchDb
 const { find, insert, destroy } = require('../model/livreModel');
 const Joi = require('joi');
+let jwt = require("jsonwebtoken");
 
 // Schéma d'un livre
 const livreSchema = Joi.object({
@@ -18,8 +19,47 @@ const livreSchema = Joi.object({
         .required(),
 });
 
+
+
+// Middleware pour vérifier le token
+function verifJTW(req, res, next) {
+    let token = req.body.token || req.query.token;
+    if (token) {
+        jwt.verify(token, 'clesecrete', function (err, payload) {
+            if (err) { 
+                return res.json({
+                    satus: false,
+                    message: 'token incorrect : ' + err.message
+                });
+            }
+            else { 
+                req.payload = payload; 
+                next(); 
+            }
+        });
+    } else {
+        return res.status(403).send({
+            status: false,
+            message: 'token absent'
+        });
+    }
+}
+
+// Page d'accueil
 const home = async (req, res) => {
     res.status(200).json({ message: "Api de gestion de livres" })
+}
+
+// Créer un token
+const getToken = async (req, res) => {
+    const payload = {
+        username: 'utilisateur',
+    };
+
+    const secretKey = 'clesecrete';
+
+    const token = jwt.sign(payload, secretKey, { expiresIn: '1h' }); // Vous pouvez ajuster la durée de 
+    res.json({ token });
 }
 
 // Afficher tous les livres
@@ -59,16 +99,12 @@ const getLivrePages = async (req, res) => {
     } else {
         res.status(404).json({ message: "Livre non trouvé" });
     }
-
-
-
-
 }
 
 // Obtenir une page particulière d'un livre
 const getLivreUniquePage = async (req, res) => {
     const numLivre = parseInt(req.params.numlivre)
-    const numPage = parseInt(req.params.numPage)
+    const numPage = parseInt(req.params.numPage -1)
 
     const searchLivre = await find("getLivreByNum", numLivre);
     if (searchLivre[0]) {
@@ -135,6 +171,8 @@ const modifyLivre = async (req, res) => {
 
 module.exports = {
     home,
+    verifJTW,
+    getToken,
     getAllLivres,
     getLivreByNum,
     getLivrePages,
